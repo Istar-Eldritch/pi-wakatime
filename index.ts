@@ -36,6 +36,33 @@ import * as os from "node:os";
 import * as https from "node:https";
 import { createWriteStream } from "node:fs";
 
+// Extension version
+const EXTENSION_VERSION = "0.1.0";
+
+// Detect pi-coding-agent version from its package.json
+function getPiVersion(): string {
+	try {
+		// Try to find pi-coding-agent package.json by resolving the module
+		const piModulePath = require.resolve("@mariozechner/pi-coding-agent");
+		let dir = path.dirname(piModulePath);
+		
+		// Walk up to find package.json
+		while (dir !== path.dirname(dir)) {
+			const packagePath = path.join(dir, "package.json");
+			if (fs.existsSync(packagePath)) {
+				const pkg = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
+				if (pkg.name === "@mariozechner/pi-coding-agent" && pkg.version) {
+					return pkg.version;
+				}
+			}
+			dir = path.dirname(dir);
+		}
+	} catch {
+		// Fallback if module resolution fails
+	}
+	return "unknown";
+}
+
 // Language mapping for common extensions
 const LANGUAGE_MAP: Record<string, string> = {
 	ts: "TypeScript",
@@ -455,6 +482,7 @@ export default function (pi: ExtensionAPI) {
 	let currentProject: string | undefined;
 	let currentBranch: string | undefined;
 	let cliAvailable = false;
+	const piVersion = getPiVersion();
 
 	// Load config from settings
 	function loadConfig(ctx: { cwd: string }) {
@@ -621,8 +649,9 @@ export default function (pi: ExtensionAPI) {
 			args.push("--ai-line-changes", String(opts.aiLineChanges));
 		}
 
-		// Plugin identifier
-		const plugin = opts.plugin || `pi/1.0.0${currentModel ? ` ${currentModel}` : ""}`;
+		// Plugin identifier (format: "editor/version plugin/version")
+		// The first part identifies the editor to WakaTime
+		const plugin = opts.plugin || `pi-coding-agent/${piVersion} pi-wakatime/${EXTENSION_VERSION}${currentModel ? ` ${currentModel}` : ""}`;
 		args.push("--plugin", plugin);
 
 		// Execute async, ignore errors
@@ -821,6 +850,11 @@ export default function (pi: ExtensionAPI) {
 			status.push(`  Project: ${currentProject || "(none)"}`);
 			status.push(`  Branch: ${currentBranch || "(none)"}`);
 			status.push(`  Model: ${currentModel || "(none)"}`);
+
+			status.push("");
+			status.push("Version info:");
+			status.push(`  pi-coding-agent: ${piVersion}`);
+			status.push(`  pi-wakatime: ${EXTENSION_VERSION}`);
 
 			ctx.ui.notify(status.join("\n"), "info");
 		},
