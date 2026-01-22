@@ -37,7 +37,7 @@ import * as https from "node:https";
 import { createWriteStream } from "node:fs";
 
 // Extension version
-const EXTENSION_VERSION = "0.1.0";
+const EXTENSION_VERSION = "0.1.1";
 
 // Detect pi-coding-agent version from its package.json
 function getPiVersion(): string {
@@ -649,9 +649,8 @@ export default function (pi: ExtensionAPI) {
 			args.push("--ai-line-changes", String(opts.aiLineChanges));
 		}
 
-		// Plugin identifier (format: "editor/version plugin/version")
-		// The first part identifies the editor to WakaTime
-		const plugin = opts.plugin || `pi-coding-agent/${piVersion} pi-wakatime/${EXTENSION_VERSION}${currentModel ? ` ${currentModel}` : ""}`;
+		// Plugin identifier - "pi-coding-agent/version" is recognized by WakaTime as "Pi Coding"
+		const plugin = opts.plugin || `pi-coding-agent/${piVersion}`;
 		args.push("--plugin", plugin);
 
 		// Execute async, ignore errors
