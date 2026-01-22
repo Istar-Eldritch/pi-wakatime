@@ -599,7 +599,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		// Plugin identifier
-		const plugin = opts.plugin || `pi-coding-agent/1.0.0${currentModel ? ` ${currentModel}` : ""}`;
+		const plugin = opts.plugin || `pi/1.0.0${currentModel ? ` ${currentModel}` : ""}`;
 		args.push("--plugin", plugin);
 
 		// Execute async, ignore errors
