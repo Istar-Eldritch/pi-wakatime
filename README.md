@@ -36,32 +36,43 @@ Track your AI-assisted coding time alongside your regular coding activity in Wak
 
 ## Installation
 
-### Option 1: Global installation (recommended)
+### Option 1: Git clone (recommended)
 
-Copy the extension to your pi extensions directory:
-
-```bash
-mkdir -p ~/.pi/agent/extensions
-curl -o ~/.pi/agent/extensions/wakatime.ts \
-  https://raw.githubusercontent.com/USER/pi-wakatime/main/wakatime.ts
-```
-
-### Option 2: Per-project installation
-
-Copy to your project's `.pi/extensions/` directory:
+Clone directly into your pi extensions directory:
 
 ```bash
-mkdir -p .pi/extensions
-curl -o .pi/extensions/wakatime.ts \
-  https://raw.githubusercontent.com/USER/pi-wakatime/main/wakatime.ts
+git clone https://github.com/USER/pi-wakatime ~/.pi/agent/extensions/wakatime
 ```
 
-### Option 3: Manual loading
+**Update anytime with:**
+```bash
+cd ~/.pi/agent/extensions/wakatime && git pull
+```
+
+### Option 2: Single file download
+
+If you prefer not to use git:
+
+```bash
+mkdir -p ~/.pi/agent/extensions/wakatime
+curl -o ~/.pi/agent/extensions/wakatime/index.ts \
+  https://raw.githubusercontent.com/USER/pi-wakatime/main/index.ts
+```
+
+### Option 3: Per-project installation
+
+For project-specific use, clone into your project:
+
+```bash
+git clone https://github.com/USER/pi-wakatime .pi/extensions/wakatime
+```
+
+### Option 4: Manual loading
 
 Load explicitly when starting pi:
 
 ```bash
-pi -e /path/to/wakatime.ts
+pi -e /path/to/pi-wakatime/index.ts
 ```
 
 ## Configuration
