@@ -22,7 +22,7 @@
  *     "enabled": true,
  *     "trackFiles": true,
  *     "trackSessions": true,
- *     "category": "ai coding",
+ *     "category": "AI assist",
  *     "cliPath": "~/.wakatime/wakatime-cli"
  *   }
  * }
@@ -446,7 +446,7 @@ export default function (pi: ExtensionAPI) {
 		enabled: true,
 		trackFiles: true,
 		trackSessions: true,
-		category: "ai coding",
+		category: "AI assist",
 		cliPath: path.join(os.homedir(), ".wakatime", "wakatime-cli"),
 	};
 
@@ -570,7 +570,7 @@ export default function (pi: ExtensionAPI) {
 			args.push("--entity-type", opts.entityType);
 		}
 
-		// Category (default: "ai coding")
+		// Category (default: "AI assist")
 		args.push("--category", opts.category || config.category);
 
 		// Language
