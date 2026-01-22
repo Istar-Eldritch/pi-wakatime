@@ -17,7 +17,7 @@ Track your AI-assisted coding time alongside your regular coding activity in Wak
 - 🌿 **Branch detection** — Auto-detects git branch
 - 🤖 **AI line changes** — Tracks lines added/removed by AI
 - 🧠 **Model tracking** — Includes LLM model name in the plugin identifier
-- 🏷️ **Category** — Uses `"AI assist"` category
+- 🏷️ **Category** — Uses `"ai coding"` category
 
 ## Quick Start
 
@@ -80,7 +80,7 @@ Optional configuration via `~/.pi/agent/settings.json`:
     "enabled": true,
     "trackFiles": true,
     "trackSessions": true,
-    "category": "AI assist",
+    "category": "ai coding",
     "cliPath": "~/.wakatime/wakatime-cli"
   }
 }
@@ -91,7 +91,7 @@ Optional configuration via `~/.pi/agent/settings.json`:
 | `enabled` | `true` | Enable/disable tracking |
 | `trackFiles` | `true` | Track individual file operations |
 | `trackSessions` | `true` | Track session activity (turns) |
-| `category` | `"AI assist"` | WakaTime category for heartbeats |
+| `category` | `"ai coding"` | WakaTime category for heartbeats |
 | `cliPath` | `~/.wakatime/wakatime-cli` | Path to wakatime-cli |
 
 ## Troubleshooting
