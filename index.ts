@@ -633,9 +633,17 @@ export default function (pi: ExtensionAPI) {
 		});
 	}
 
+	// Helper to update currentModel from context
+	function updateModelFromContext(ctx: { model?: { provider: string; id: string } | null }) {
+		if (ctx.model) {
+			currentModel = `${ctx.model.provider}/${ctx.model.id}`;
+		}
+	}
+
 	// Track session start
 	pi.on("session_start", async (_event, ctx) => {
 		loadConfig(ctx);
+		updateModelFromContext(ctx);
 
 		// Auto-install wakatime-cli if not found
 		if (!cliAvailable) {
@@ -694,6 +702,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
+		updateModelFromContext(ctx);
 		sendHeartbeat({
 			entity: ctx.cwd,
 			entityType: "app",
@@ -707,6 +716,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
+		updateModelFromContext(ctx);
 		const toolName = event.toolName;
 
 		// Only track file operations
@@ -760,6 +770,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
+		updateModelFromContext(ctx);
 		// Final heartbeat
 		sendHeartbeat({
 			entity: ctx.cwd,
