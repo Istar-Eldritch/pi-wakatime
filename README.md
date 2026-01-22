@@ -41,7 +41,7 @@ Track your AI-assisted coding time alongside your regular coding activity in Wak
 Clone directly into your pi extensions directory:
 
 ```bash
-git clone https://github.com/USER/pi-wakatime ~/.pi/agent/extensions/wakatime
+git clone https://github.com/Istar-Eldritch/pi-wakatime ~/.pi/agent/extensions/wakatime
 ```
 
 **Update anytime with:**
@@ -56,7 +56,7 @@ If you prefer not to use git:
 ```bash
 mkdir -p ~/.pi/agent/extensions/wakatime
 curl -o ~/.pi/agent/extensions/wakatime/index.ts \
-  https://raw.githubusercontent.com/USER/pi-wakatime/main/index.ts
+  https://raw.githubusercontent.com/Istar-Eldritch/pi-wakatime/main/index.ts
 ```
 
 ### Option 3: Per-project installation
@@ -64,7 +64,7 @@ curl -o ~/.pi/agent/extensions/wakatime/index.ts \
 For project-specific use, clone into your project:
 
 ```bash
-git clone https://github.com/USER/pi-wakatime .pi/extensions/wakatime
+git clone https://github.com/Istar-Eldritch/pi-wakatime .pi/extensions/wakatime
 ```
 
 ### Option 4: Manual loading
