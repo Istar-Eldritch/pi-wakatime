@@ -22,7 +22,7 @@
  *     "enabled": true,
  *     "trackFiles": true,
  *     "trackSessions": true,
- *     "category": "AI assist",
+ *     "category": "ai coding",
  *     "cliPath": "~/.wakatime/wakatime-cli"
  *   }
  * }
@@ -446,7 +446,7 @@ export default function (pi: ExtensionAPI) {
 		enabled: true,
 		trackFiles: true,
 		trackSessions: true,
-		category: "AI assist",
+		category: "ai coding",
 		cliPath: path.join(os.homedir(), ".wakatime", "wakatime-cli"),
 	};
 
@@ -552,6 +552,29 @@ export default function (pi: ExtensionAPI) {
 	// Count lines in content
 	function countLines(content: string): number {
 		return content.split("\n").length;
+	}
+
+	// Get today's tracked time from wakatime-cli
+	function getTodayTime(): Promise<string> {
+		return new Promise((resolve) => {
+			if (!cliAvailable) {
+				resolve("(CLI not available)");
+				return;
+			}
+
+			execFile(config.cliPath, ["--today"], { timeout: 10000 }, (error, stdout) => {
+				if (error) {
+					if (process.env.DEBUG) {
+						console.error("[wakatime] failed to get today's time:", error.message);
+					}
+					resolve("(failed to fetch)");
+					return;
+				}
+
+				const time = stdout.trim();
+				resolve(time || "0 secs");
+			});
+		});
 	}
 
 	// Send heartbeat via wakatime-cli
@@ -752,6 +775,11 @@ export default function (pi: ExtensionAPI) {
 			if (!ctx.hasUI) return;
 
 			const status: string[] = [];
+
+			// Fetch today's time
+			const todayTime = await getTodayTime();
+			status.push(`⏱️  Today: ${todayTime}`);
+			status.push("");
 
 			// CLI status
 			if (!cliAvailable) {
