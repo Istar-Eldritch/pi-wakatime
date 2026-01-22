@@ -13,26 +13,20 @@ Track your AI-assisted coding time alongside your regular coding activity in Wak
 - 🔤 **Language detection** — Auto-detects 100+ programming languages
 - 📂 **Project detection** — Auto-detects project from current working directory
 - 🌿 **Branch detection** — Auto-detects git branch
-- 🤖 **AI line changes** — Tracks lines added/removed by AI (uses WakaTime's `--ai-line-changes`)
+- 🤖 **AI line changes** — Tracks lines added/removed by AI
 - 🧠 **Model tracking** — Includes LLM model name in the plugin identifier
-- 🏷️ **Category** — Uses `"ai coding"` category (WakaTime's built-in AI category)
+- 🏷️ **Category** — Uses `"ai coding"` category
 
-## Requirements
+## Quick Start
 
-1. **pi coding agent** — Install from [npm](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) or [GitHub](https://github.com/badlogic/pi-mono)
-
-2. **wakatime-cli** — Usually already installed if you use WakaTime in other editors. If not:
-   ```bash
-   # The CLI is typically at ~/.wakatime/wakatime-cli
-   # Install instructions: https://wakatime.com/terminal
+1. Install the extension (see [Installation](#installation))
+2. Start pi — wakatime-cli will auto-install if needed
+3. Configure your API key when prompted:
    ```
-
-3. **WakaTime API key** — Configure in `~/.wakatime.cfg`:
-   ```ini
-   [settings]
-   api_key = your-api-key-here
+   /wakatime-setup <your-api-key>
    ```
    Get your API key from: https://wakatime.com/settings/api-key
+4. Done! Your AI coding time is now being tracked.
 
 ## Installation
 
@@ -51,23 +45,13 @@ cd ~/.pi/agent/extensions/wakatime && git pull
 
 ### Option 2: Single file download
 
-If you prefer not to use git:
-
 ```bash
 mkdir -p ~/.pi/agent/extensions/wakatime
 curl -o ~/.pi/agent/extensions/wakatime/index.ts \
   https://raw.githubusercontent.com/Istar-Eldritch/pi-wakatime/main/index.ts
 ```
 
-### Option 3: Per-project installation
-
-For project-specific use, clone into your project:
-
-```bash
-git clone https://github.com/Istar-Eldritch/pi-wakatime .pi/extensions/wakatime
-```
-
-### Option 4: Manual loading
+### Option 3: Manual loading
 
 Load explicitly when starting pi:
 
@@ -75,9 +59,18 @@ Load explicitly when starting pi:
 pi -e /path/to/pi-wakatime/index.ts
 ```
 
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/wakatime` | Show status (CLI, API key, config, session info) |
+| `/wakatime-setup <key>` | Configure your WakaTime API key |
+| `/wakatime-install` | Manually install or update wakatime-cli |
+| `/wakatime-toggle` | Toggle tracking on/off for current session |
+
 ## Configuration
 
-Add to `~/.pi/agent/settings.json`:
+Optional configuration via `~/.pi/agent/settings.json`:
 
 ```json
 {
@@ -91,8 +84,6 @@ Add to `~/.pi/agent/settings.json`:
 }
 ```
 
-### Options
-
 | Option | Default | Description |
 |--------|---------|-------------|
 | `enabled` | `true` | Enable/disable tracking |
@@ -101,108 +92,27 @@ Add to `~/.pi/agent/settings.json`:
 | `category` | `"ai coding"` | WakaTime category for heartbeats |
 | `cliPath` | `~/.wakatime/wakatime-cli` | Path to wakatime-cli |
 
-## Commands
-
-The extension adds two commands to pi:
-
-| Command | Description |
-|---------|-------------|
-| `/wakatime` | Show status (CLI availability, config, current session info) |
-| `/wakatime-toggle` | Toggle tracking on/off for current session |
-
-## What Gets Tracked
-
-### In Your WakaTime Dashboard
-
-- **Projects** — Your project directories (detected from cwd)
-- **Files** — Each file the AI reads, writes, or edits
-- **Languages** — Detected from file extensions
-- **Categories** — Shows as "AI Coding"
-- **Editors** — Shows as `pi-coding-agent/1.0.0` with model name (e.g., `anthropic/claude-sonnet-4`)
-- **Branches** — Git branch (auto-detected)
-
-### AI-Specific Metrics
-
-WakaTime's dashboard shows AI-assisted coding separately when you use the "AI Coding" category. The extension also tracks:
-
-- **AI line changes** — Lines added/removed by AI in write/edit operations
-- **Model used** — Which LLM model performed the work
-
-## How It Works
-
-The extension hooks into pi's event system:
-
-1. **`session_start`** — Sends initial heartbeat, detects project/branch
-2. **`model_select`** — Tracks which model is being used
-3. **`turn_start`** — Sends heartbeat for each agent turn
-4. **`tool_result`** — Tracks file operations (read/write/edit)
-5. **`session_shutdown`** — Sends final heartbeat
-
-Heartbeats are sent via `wakatime-cli`, which handles:
-- Rate limiting (2 min between heartbeats for same file)
-- Offline queueing (heartbeats saved locally when offline)
-- API communication
-
 ## Troubleshooting
 
 ### "WakaTime CLI not found"
 
-Install wakatime-cli:
-```bash
-# Download latest release
-curl -fsSL https://wakatime.com/terminal | sh
+The CLI should auto-install on first run. If it fails, try:
+```
+/wakatime-install
 ```
 
-Or specify a custom path in settings:
-```json
-{
-  "wakatime": {
-    "cliPath": "/usr/local/bin/wakatime-cli"
-  }
-}
+### "WakaTime API key not configured"
+
+Configure your API key:
 ```
-
-### Heartbeats not appearing in dashboard
-
-1. Check CLI works: `~/.wakatime/wakatime-cli --today`
-2. Check API key: `cat ~/.wakatime.cfg`
-3. Enable debug mode: `DEBUG=1 pi` and look for `[wakatime]` messages
-4. Check offline queue: `~/.wakatime/wakatime-cli --offline-count`
-
-### Wrong project detected
-
-Create a `.wakatime-project` file in your project root:
+/wakatime-setup <your-api-key>
 ```
-my-project-name
-```
+Get your API key from: https://wakatime.com/settings/api-key
 
-## Privacy
+### Heartbeats not appearing
 
-This extension sends the same data as any WakaTime editor plugin:
-- File paths (can be obfuscated via wakatime-cli settings)
-- Project names
-- Language/editor info
-- Timestamps
-
-Review WakaTime's [privacy policy](https://wakatime.com/legal/privacy) for details.
-
-To obfuscate file/project names, configure wakatime-cli:
-```bash
-~/.wakatime/wakatime-cli --config-write hide_file_names true
-~/.wakatime/wakatime-cli --config-write hide_project_names true
-```
+Run `/wakatime` to check status and verify CLI and API key are configured correctly.
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions welcome! Please open an issue or PR on GitHub.
-
-## See Also
-
-- [pi coding agent](https://github.com/badlogic/pi-mono) — The AI coding agent
-- [WakaTime](https://wakatime.com) — Developer time tracking
-- [WakaTime API](https://wakatime.com/developers) — API documentation
-- [Creating a WakaTime Plugin](https://wakatime.com/help/creating-plugin) — Plugin development guide

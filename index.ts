@@ -29,10 +29,12 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
+import * as https from "node:https";
+import { createWriteStream } from "node:fs";
 
 // Language mapping for common extensions
 const LANGUAGE_MAP: Record<string, string> = {
@@ -172,6 +174,270 @@ interface HeartbeatOptions {
 	isWrite?: boolean;
 	aiLineChanges?: number;
 	plugin?: string;
+}
+
+// Platform and architecture detection for wakatime-cli download
+function getPlatformInfo(): { platform: string; arch: string } | null {
+	const platform = os.platform();
+	const arch = os.arch();
+
+	// Map Node.js platform to wakatime-cli naming
+	let wkPlatform: string;
+	switch (platform) {
+		case "linux":
+			wkPlatform = "linux";
+			break;
+		case "darwin":
+			wkPlatform = "darwin";
+			break;
+		case "win32":
+			wkPlatform = "windows";
+			break;
+		case "freebsd":
+			wkPlatform = "freebsd";
+			break;
+		case "openbsd":
+			wkPlatform = "openbsd";
+			break;
+		case "netbsd":
+			wkPlatform = "netbsd";
+			break;
+		default:
+			return null;
+	}
+
+	// Map Node.js arch to wakatime-cli naming
+	let wkArch: string;
+	switch (arch) {
+		case "x64":
+			wkArch = "amd64";
+			break;
+		case "arm64":
+			wkArch = "arm64";
+			break;
+		case "ia32":
+			wkArch = "386";
+			break;
+		case "arm":
+			wkArch = "arm";
+			break;
+		default:
+			return null;
+	}
+
+	return { platform: wkPlatform, arch: wkArch };
+}
+
+// Download a file from URL, following redirects
+function downloadFile(url: string, destPath: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const file = createWriteStream(destPath);
+
+		const request = (url: string) => {
+			https
+				.get(url, (response) => {
+					// Handle redirects
+					if (response.statusCode === 301 || response.statusCode === 302) {
+						const redirectUrl = response.headers.location;
+						if (redirectUrl) {
+							file.close();
+							fs.unlinkSync(destPath);
+							request(redirectUrl);
+							return;
+						}
+					}
+
+					if (response.statusCode !== 200) {
+						file.close();
+						fs.unlinkSync(destPath);
+						reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
+						return;
+					}
+
+					response.pipe(file);
+					file.on("finish", () => {
+						file.close();
+						resolve();
+					});
+				})
+				.on("error", (err) => {
+					file.close();
+					fs.unlink(destPath, () => {}); // Delete partial file
+					reject(err);
+				});
+		};
+
+		request(url);
+	});
+}
+
+// Check if WakaTime API key is configured
+function isApiKeyConfigured(): boolean {
+	const configPath = path.join(os.homedir(), ".wakatime.cfg");
+	if (!fs.existsSync(configPath)) {
+		return false;
+	}
+
+	try {
+		const content = fs.readFileSync(configPath, "utf-8");
+		// Check for api_key in the config (handles both api_key and api_key_vault_cmd)
+		return /^\s*api_key\s*=/m.test(content);
+	} catch {
+		return false;
+	}
+}
+
+// Save WakaTime API key to config file
+function saveApiKey(apiKey: string): boolean {
+	const configPath = path.join(os.homedir(), ".wakatime.cfg");
+
+	try {
+		let content = "";
+
+		if (fs.existsSync(configPath)) {
+			content = fs.readFileSync(configPath, "utf-8");
+
+			// Replace existing api_key if present
+			if (/^\s*api_key\s*=/m.test(content)) {
+				content = content.replace(/^\s*api_key\s*=.*/m, `api_key = ${apiKey}`);
+			} else if (/^\[settings\]/m.test(content)) {
+				// Add api_key after [settings] section
+				content = content.replace(/^\[settings\]/m, `[settings]\napi_key = ${apiKey}`);
+			} else {
+				// Add [settings] section with api_key
+				content = `[settings]\napi_key = ${apiKey}\n\n${content}`;
+			}
+		} else {
+			// Create new config file
+			content = `[settings]\napi_key = ${apiKey}\n`;
+		}
+
+		fs.writeFileSync(configPath, content, { mode: 0o600 });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+// Validate WakaTime API key format
+function isValidApiKey(key: string): boolean {
+	// WakaTime API keys are either:
+	// - Legacy: UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+	// - New: waka_ prefix followed by UUID (waka_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+	const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+	const wakaPattern = /^waka_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+	return uuidPattern.test(key) || wakaPattern.test(key);
+}
+
+// Install wakatime-cli from GitHub releases
+async function installWakaTimeCli(
+	cliPath: string,
+	notify?: (message: string, type: "info" | "warning" | "error") => void
+): Promise<boolean> {
+	const platformInfo = getPlatformInfo();
+	if (!platformInfo) {
+		notify?.("Unsupported platform for wakatime-cli auto-install", "warning");
+		return false;
+	}
+
+	const { platform, arch } = platformInfo;
+	const isWindows = platform === "windows";
+	const binaryName = isWindows ? "wakatime-cli.exe" : "wakatime-cli";
+	const zipName = `wakatime-cli-${platform}-${arch}.zip`;
+
+	// Create installation directory
+	const installDir = path.dirname(cliPath);
+	if (!fs.existsSync(installDir)) {
+		fs.mkdirSync(installDir, { recursive: true });
+	}
+
+	const zipPath = path.join(installDir, zipName);
+
+	try {
+		// Get latest release info
+		notify?.("Checking for latest wakatime-cli release...", "info");
+
+		const releaseInfo = await new Promise<{ tag_name: string; assets: { name: string; browser_download_url: string }[] }>(
+			(resolve, reject) => {
+				https
+					.get(
+						"https://api.github.com/repos/wakatime/wakatime-cli/releases/latest",
+						{
+							headers: { "User-Agent": "pi-wakatime-extension" },
+						},
+						(response) => {
+							let data = "";
+							response.on("data", (chunk) => (data += chunk));
+							response.on("end", () => {
+								try {
+									resolve(JSON.parse(data));
+								} catch (e) {
+									reject(new Error("Failed to parse release info"));
+								}
+							});
+						}
+					)
+					.on("error", reject);
+			}
+		);
+
+		// Find the right asset
+		const asset = releaseInfo.assets.find((a) => a.name === zipName);
+		if (!asset) {
+			notify?.(`No wakatime-cli binary found for ${platform}-${arch}`, "warning");
+			return false;
+		}
+
+		// Download the zip
+		notify?.(`Downloading wakatime-cli ${releaseInfo.tag_name}...`, "info");
+		await downloadFile(asset.browser_download_url, zipPath);
+
+		// Extract the zip
+		notify?.("Extracting wakatime-cli...", "info");
+
+		if (isWindows) {
+			// Use PowerShell on Windows
+			execFileSync("powershell", ["-Command", `Expand-Archive -Path "${zipPath}" -DestinationPath "${installDir}" -Force`]);
+		} else {
+			// Use unzip on Unix-like systems
+			execFileSync("unzip", ["-o", zipPath, "-d", installDir]);
+		}
+
+		// The extracted binary has a platform-specific name, rename it
+		const extractedName = `wakatime-cli-${platform}-${arch}${isWindows ? ".exe" : ""}`;
+		const extractedPath = path.join(installDir, extractedName);
+
+		if (fs.existsSync(extractedPath)) {
+			// Remove existing cli if present
+			if (fs.existsSync(cliPath)) {
+				fs.unlinkSync(cliPath);
+			}
+			fs.renameSync(extractedPath, cliPath);
+		}
+
+		// Make executable on Unix
+		if (!isWindows) {
+			fs.chmodSync(cliPath, 0o755);
+		}
+
+		// Clean up zip file
+		fs.unlinkSync(zipPath);
+
+		notify?.(`wakatime-cli ${releaseInfo.tag_name} installed successfully!`, "info");
+		return true;
+	} catch (error) {
+		// Clean up on failure
+		if (fs.existsSync(zipPath)) {
+			try {
+				fs.unlinkSync(zipPath);
+			} catch {}
+		}
+
+		const message = error instanceof Error ? error.message : String(error);
+		notify?.(`Failed to install wakatime-cli: ${message}`, "error");
+		return false;
+	}
 }
 
 export default function (pi: ExtensionAPI) {
@@ -348,10 +614,35 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		loadConfig(ctx);
 
+		// Auto-install wakatime-cli if not found
 		if (!cliAvailable) {
-			if (ctx.hasUI) {
-				ctx.ui.notify("WakaTime CLI not found at " + config.cliPath, "warning");
+			const notify = ctx.hasUI ? ctx.ui.notify.bind(ctx.ui) : undefined;
+			notify?.("WakaTime CLI not found, attempting auto-install...", "info");
+
+			const installed = await installWakaTimeCli(config.cliPath, notify);
+			if (installed) {
+				cliAvailable = true;
+			} else {
+				if (ctx.hasUI) {
+					ctx.ui.notify(
+						"WakaTime CLI not found. Install manually from: https://wakatime.com/terminal",
+						"warning"
+					);
+				}
+				return;
 			}
+		}
+
+		// Check if API key is configured
+		if (!isApiKeyConfigured()) {
+			if (ctx.hasUI) {
+				ctx.ui.notify(
+					"WakaTime API key not configured. Run /wakatime-setup to configure.",
+					"warning"
+				);
+			}
+			// Disable tracking until API key is configured
+			config.enabled = false;
 			return;
 		}
 
@@ -462,11 +753,21 @@ export default function (pi: ExtensionAPI) {
 
 			const status: string[] = [];
 
+			// CLI status
 			if (!cliAvailable) {
 				status.push("❌ CLI not found: " + config.cliPath);
-				status.push("   Install from: https://wakatime.com/terminal");
+				status.push("   Run /wakatime-install to auto-install");
 			} else {
 				status.push("✓ CLI found: " + config.cliPath);
+			}
+
+			// API key status
+			if (!isApiKeyConfigured()) {
+				status.push("❌ API key not configured");
+				status.push("   Run /wakatime-setup <api_key> to configure");
+				status.push("   Get your key from: https://wakatime.com/settings/api-key");
+			} else {
+				status.push("✓ API key configured");
 			}
 
 			status.push("");
@@ -483,6 +784,66 @@ export default function (pi: ExtensionAPI) {
 			status.push(`  Model: ${currentModel || "(none)"}`);
 
 			ctx.ui.notify(status.join("\n"), "info");
+		},
+	});
+
+	// Register command to manually install wakatime-cli
+	pi.registerCommand("wakatime-install", {
+		description: "Install or update wakatime-cli",
+		handler: async (_args, ctx) => {
+			const notify = ctx.hasUI ? ctx.ui.notify.bind(ctx.ui) : undefined;
+
+			if (cliAvailable) {
+				notify?.("wakatime-cli is already installed. Reinstalling...", "info");
+			}
+
+			const installed = await installWakaTimeCli(config.cliPath, notify);
+			if (installed) {
+				cliAvailable = true;
+			}
+		},
+	});
+
+	// Register command to setup WakaTime API key
+	pi.registerCommand("wakatime-setup", {
+		description: "Configure WakaTime API key",
+		args: [{ name: "api_key", description: "Your WakaTime API key (from https://wakatime.com/settings/api-key)", optional: true }],
+		handler: async (args, ctx) => {
+			if (!ctx.hasUI) return;
+
+			const apiKey = args.api_key as string | undefined;
+
+			if (!apiKey) {
+				ctx.ui.notify(
+					"Usage: /wakatime-setup <api_key>\n\n" +
+					"Get your API key from: https://wakatime.com/settings/api-key\n\n" +
+					"Example: /wakatime-setup waka_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+					"info"
+				);
+				return;
+			}
+
+			// Validate API key format
+			if (!isValidApiKey(apiKey)) {
+				ctx.ui.notify(
+					"Invalid API key format.\n\n" +
+					"WakaTime API keys look like:\n" +
+					"  waka_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\n" +
+					"  or: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\n\n" +
+					"Get your key from: https://wakatime.com/settings/api-key",
+					"error"
+				);
+				return;
+			}
+
+			// Save API key
+			if (saveApiKey(apiKey)) {
+				ctx.ui.notify("WakaTime API key configured successfully!", "info");
+				// Re-enable tracking
+				config.enabled = true;
+			} else {
+				ctx.ui.notify("Failed to save API key to ~/.wakatime.cfg", "error");
+			}
 		},
 	});
 
