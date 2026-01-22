@@ -3,13 +3,12 @@
  *
  * Tracks coding activity with WakaTime when using pi coding agent.
  * Uses the wakatime-cli for heartbeats, which handles rate limiting,
- * offline queueing, and API communication.
+ * offline queueing, language detection, and API communication.
  *
  * Tracks:
  * - Files read/written/edited by the agent
  * - Session activity (turns, thinking time)
  * - Project detection from cwd
- * - Language detection from file extensions
  * - AI line changes for write/edit operations
  *
  * Requirements:
@@ -37,7 +36,7 @@ import * as https from "node:https";
 import { createWriteStream } from "node:fs";
 
 // Extension version
-const EXTENSION_VERSION = "0.1.1";
+const EXTENSION_VERSION = "0.1.2";
 
 // Detect pi-coding-agent version from its package.json
 function getPiVersion(): string {
@@ -63,125 +62,7 @@ function getPiVersion(): string {
 	return "unknown";
 }
 
-// Language mapping for common extensions
-const LANGUAGE_MAP: Record<string, string> = {
-	ts: "TypeScript",
-	tsx: "TypeScript",
-	js: "JavaScript",
-	jsx: "JavaScript",
-	mjs: "JavaScript",
-	cjs: "JavaScript",
-	py: "Python",
-	rb: "Ruby",
-	rs: "Rust",
-	go: "Go",
-	java: "Java",
-	kt: "Kotlin",
-	kts: "Kotlin",
-	scala: "Scala",
-	c: "C",
-	h: "C",
-	cpp: "C++",
-	cc: "C++",
-	cxx: "C++",
-	hpp: "C++",
-	hxx: "C++",
-	cs: "C#",
-	fs: "F#",
-	fsx: "F#",
-	swift: "Swift",
-	m: "Objective-C",
-	mm: "Objective-C++",
-	php: "PHP",
-	pl: "Perl",
-	pm: "Perl",
-	lua: "Lua",
-	r: "R",
-	jl: "Julia",
-	ex: "Elixir",
-	exs: "Elixir",
-	erl: "Erlang",
-	hrl: "Erlang",
-	hs: "Haskell",
-	lhs: "Haskell",
-	ml: "OCaml",
-	mli: "OCaml",
-	clj: "Clojure",
-	cljs: "ClojureScript",
-	cljc: "Clojure",
-	dart: "Dart",
-	zig: "Zig",
-	nim: "Nim",
-	v: "V",
-	cr: "Crystal",
-	d: "D",
-	pas: "Pascal",
-	pp: "Pascal",
-	f90: "Fortran",
-	f95: "Fortran",
-	f03: "Fortran",
-	asm: "Assembly",
-	s: "Assembly",
-	sh: "Shell",
-	bash: "Shell",
-	zsh: "Shell",
-	fish: "Fish",
-	ps1: "PowerShell",
-	psm1: "PowerShell",
-	bat: "Batch",
-	cmd: "Batch",
-	sql: "SQL",
-	html: "HTML",
-	htm: "HTML",
-	css: "CSS",
-	scss: "SCSS",
-	sass: "Sass",
-	less: "Less",
-	styl: "Stylus",
-	vue: "Vue",
-	svelte: "Svelte",
-	astro: "Astro",
-	json: "JSON",
-	jsonc: "JSON with Comments",
-	json5: "JSON5",
-	yaml: "YAML",
-	yml: "YAML",
-	toml: "TOML",
-	ini: "INI",
-	cfg: "INI",
-	conf: "Config",
-	xml: "XML",
-	xsl: "XSLT",
-	xslt: "XSLT",
-	md: "Markdown",
-	mdx: "MDX",
-	rst: "reStructuredText",
-	tex: "TeX",
-	latex: "LaTeX",
-	bib: "BibTeX",
-	txt: "Text",
-	csv: "CSV",
-	tsv: "TSV",
-	dockerfile: "Docker",
-	docker: "Docker",
-	makefile: "Makefile",
-	cmake: "CMake",
-	gradle: "Gradle",
-	groovy: "Groovy",
-	tf: "Terraform",
-	tfvars: "Terraform",
-	hcl: "HCL",
-	nix: "Nix",
-	proto: "Protocol Buffer",
-	graphql: "GraphQL",
-	gql: "GraphQL",
-	prisma: "Prisma",
-	sol: "Solidity",
-	vy: "Vyper",
-	move: "Move",
-	wasm: "WebAssembly",
-	wat: "WebAssembly",
-};
+
 
 interface WakaTimeConfig {
 	enabled: boolean;
@@ -195,7 +76,6 @@ interface HeartbeatOptions {
 	entity: string;
 	entityType?: "file" | "app" | "domain";
 	category?: string;
-	language?: string;
 	project?: string;
 	branch?: string;
 	isWrite?: boolean;
@@ -549,34 +429,6 @@ export default function (pi: ExtensionAPI) {
 		return null;
 	}
 
-	// Get language from file extension
-	function getLanguage(filePath: string): string | undefined {
-		const ext = path.extname(filePath).slice(1).toLowerCase();
-		if (ext && LANGUAGE_MAP[ext]) {
-			return LANGUAGE_MAP[ext];
-		}
-
-		// Handle special filenames
-		const basename = path.basename(filePath).toLowerCase();
-		if (basename === "dockerfile" || basename.startsWith("dockerfile.")) {
-			return "Docker";
-		}
-		if (basename === "makefile" || basename === "gnumakefile") {
-			return "Makefile";
-		}
-		if (basename === "cmakelists.txt" || basename.endsWith(".cmake")) {
-			return "CMake";
-		}
-		if (basename === ".gitignore" || basename === ".gitattributes") {
-			return "Git Config";
-		}
-		if (basename === ".env" || basename.startsWith(".env.")) {
-			return "Environment";
-		}
-
-		return ext || undefined;
-	}
-
 	// Count lines in content
 	function countLines(content: string): number {
 		return content.split("\n").length;
@@ -624,10 +476,8 @@ export default function (pi: ExtensionAPI) {
 		// Category (default: "AI assist")
 		args.push("--category", opts.category || config.category);
 
-		// Language
-		if (opts.language) {
-			args.push("--language", opts.language);
-		}
+		// Let wakatime-cli auto-detect language from file extension/content
+		// (removed manual --language flag as wakatime-cli detection is more reliable)
 
 		// Project
 		if (opts.project || currentProject) {
@@ -653,10 +503,23 @@ export default function (pi: ExtensionAPI) {
 		const plugin = opts.plugin || `pi-coding-agent/${piVersion}`;
 		args.push("--plugin", plugin);
 
+		// Debug output
+		if (process.env.DEBUG) {
+			console.error("[wakatime] heartbeat:", config.cliPath, args.join(" "));
+		}
+
 		// Execute async, ignore errors
-		execFile(config.cliPath, args, { timeout: 10000 }, (error) => {
-			if (error && process.env.DEBUG) {
-				console.error("[wakatime] heartbeat failed:", error.message);
+		execFile(config.cliPath, args, { timeout: 10000 }, (error, stdout, stderr) => {
+			if (process.env.DEBUG) {
+				if (error) {
+					console.error("[wakatime] heartbeat failed:", error.message);
+				}
+				if (stdout) {
+					console.error("[wakatime] stdout:", stdout);
+				}
+				if (stderr) {
+					console.error("[wakatime] stderr:", stderr);
+				}
 			}
 		});
 	}
@@ -786,7 +649,6 @@ export default function (pi: ExtensionAPI) {
 		sendHeartbeat({
 			entity: absolutePath,
 			entityType: "file",
-			language: getLanguage(absolutePath),
 			isWrite: toolName !== "read",
 			aiLineChanges,
 		});
