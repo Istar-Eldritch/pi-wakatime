@@ -4,6 +4,8 @@
 
 Track your AI-assisted coding time alongside your regular coding activity in WakaTime.
 
+> **Note**: This project was generated using AI with manual human curation.
+
 ![WakaTime Dashboard](https://wakatime.com/static/img/ScreenShots/Screen-Shot-2016-03-21.png)
 
 ## Features
