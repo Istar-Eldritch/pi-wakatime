@@ -20,7 +20,7 @@
  *   "wakatime": {
  *     "enabled": true,
  *     "trackFiles": true,
- *     "trackSessions": true,
+ *     "trackSessions": false,
  *     "category": "ai coding",
  *     "cliPath": "~/.wakatime/wakatime-cli"
  *   }
@@ -36,7 +36,7 @@ import * as https from "node:https";
 import { createWriteStream } from "node:fs";
 
 // Extension version
-const EXTENSION_VERSION = "0.1.2";
+const EXTENSION_VERSION = "0.1.3";
 
 // Detect pi-coding-agent version from its package.json
 function getPiVersion(): string {
@@ -352,7 +352,7 @@ export default function (pi: ExtensionAPI) {
 	const defaultConfig: WakaTimeConfig = {
 		enabled: true,
 		trackFiles: true,
-		trackSessions: true,
+		trackSessions: false, // Disabled by default - session heartbeats use cwd which pollutes file stats
 		category: "ai coding",
 		cliPath: path.join(os.homedir(), ".wakatime", "wakatime-cli"),
 	};
@@ -621,8 +621,10 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
-		// Resolve to absolute path
-		const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.cwd, filePath);
+		// Resolve to absolute path and normalize (removes trailing slashes, resolves . and ..)
+		const absolutePath = path.normalize(
+			path.isAbsolute(filePath) ? filePath : path.resolve(ctx.cwd, filePath)
+		);
 
 		// Skip if file doesn't exist (for reads that failed)
 		if (toolName === "read" && !fs.existsSync(absolutePath)) {
